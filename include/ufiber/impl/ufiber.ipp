@@ -13,7 +13,6 @@
 #include <ufiber/ufiber.hpp>
 
 #include <cassert>
-#include <thread>
 
 namespace ufiber
 {
@@ -49,10 +48,24 @@ fiber_context::suspend() noexcept
 void
 fiber_context::resumer::operator()(void*) noexcept
 {
-    while (ctx.running_)
-        std::this_thread::yield();
+    if (ctx_.running_)
+    {
+        if (std::this_thread::get_id() == id_)
+        {
+            // If the fiber is running and we're on the same thread, that means
+            // that the operation failed to launch properly (e.g. allocation
+            // failure). Return to let the exception propagate to the caller.
+            return;
+        }
+
+        do
+        {
+            std::this_thread::yield();
+        } while (ctx_.running_);
+    }
+
     // Move onto stack, because resume() may invalidate ctx if fiber terminates
-    auto fiber = std::move(ctx.fiber_);
+    auto fiber = std::move(ctx_.fiber_);
     fiber = std::move(fiber).resume();
     // At this point the fiber has either suspended in a different async op
     // or it terminated, so it's impossible for us to get a fiber back here
@@ -74,7 +87,8 @@ initial_resume(boost::context::fiber&& f)
 
 completion_handler_base::completion_handler_base(
   detail::fiber_context& ctx) noexcept
-  : promise_{nullptr, detail::fiber_context::resumer{ctx}}
+  : promise_{nullptr,
+             detail::fiber_context::resumer{ctx, std::this_thread::get_id()}}
 {
 }
 
@@ -87,7 +101,7 @@ completion_handler_base::attach(void* promise) noexcept
 fiber_context&
 completion_handler_base::get_context() const noexcept
 {
-    return promise_.get_deleter().ctx;
+    return promise_.get_deleter().ctx_;
 }
 
 void

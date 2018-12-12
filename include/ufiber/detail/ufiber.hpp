@@ -17,6 +17,7 @@
 #include <boost/core/no_exceptions_support.hpp>
 
 #include <atomic>
+#include <thread>
 
 namespace ufiber
 {
@@ -35,7 +36,8 @@ public:
     struct resumer
     {
         UFIBER_INLINE_DECL void operator()(void* promise) noexcept;
-        fiber_context& ctx;
+        fiber_context& ctx_;
+        std::thread::id id_;
     };
 
     UFIBER_INLINE_DECL explicit fiber_context(boost::context::fiber&& f);

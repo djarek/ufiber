@@ -16,6 +16,9 @@
 namespace ufiber
 {
 
+namespace test
+{
+
 void
 try_invoke(std::function<void()>& f)
 {
@@ -26,12 +29,12 @@ try_invoke(std::function<void()>& f)
 }
 
 template<class E>
-class test_executor : public E
+class executor : public E
 {
 public:
-    test_executor(E const& e,
-                  std::function<void()>& pre_hook,
-                  std::function<void()>& post_hook)
+    executor(E const& e,
+             std::function<void()>& pre_hook,
+             std::function<void()>& post_hook)
       : E{e}
       , pre_hook_{pre_hook}
       , post_hook_{post_hook}
@@ -95,11 +98,8 @@ async_run(boost::asio::io_context& ctx,
 
         void operator()()
         {
-            handler_();
-            // Typically it would be UB to use user-provided objects after
-            // completion of the handler, but this is OK for this particular
-            // operation.
             promise_.set_value();
+            handler_();
         }
 
         handler_t handler_;
@@ -112,18 +112,19 @@ async_run(boost::asio::io_context& ctx,
     return init.result.get();
 }
 
+} // namespace test
 } // namespace ufiber
 
 int
 main()
 {
     using yield_token_t = ufiber::yield_token<
-      ufiber::test_executor<boost::asio::io_context::executor_type>>;
-
+      ufiber::test::executor<boost::asio::io_context::executor_type>>;
     using executor_t = yield_token_t::executor_type;
 
     {
-        // Check if an operation completing before a fiber suspends works
+        // Check if an operation, completing before the fiber suspends is
+        // handled properly
         std::function<void()> pre_hook;
         std::function<void()> post_hook;
         std::promise<void> promise;
@@ -134,15 +135,44 @@ main()
             // Emulate the completion of an operation before the fiber has
             // had a chance to suspend
             post_hook = [&]() {
-                promise.get_future().wait_for(std::chrono::milliseconds{500});
+                auto const status =
+                  promise.get_future().wait_for(std::chrono::milliseconds{500});
+                BOOST_TEST(status == std::future_status::ready);
             };
 
-            ufiber::async_run(io, promise, yield);
+            ufiber::test::async_run(io, promise, yield);
         });
         std::thread t{[&io]() { BOOST_TEST(io.run() == 1); }};
 
         BOOST_TEST(io.run() == 1);
         t.join();
+    }
+
+    {
+        // Check if failure to allocate in an async init function is handled
+        // properly (no resumption, just let the exception bubble to the fiber)
+        std::function<void()> pre_hook;
+        std::function<void()> post_hook;
+        boost::asio::io_context io{1};
+        executor_t ex{io.get_executor(), pre_hook, post_hook};
+        int counter = 0;
+        ufiber::spawn(ex, [&](yield_token_t yield) {
+            // Emulate an allocation failure when initiating an operation.
+            pre_hook = []() { throw std::bad_alloc{}; };
+            try
+            {
+                boost::asio::post(yield);
+                BOOST_ERROR("Expected exception");
+            }
+            catch (std::bad_alloc const&)
+            {
+                ++counter;
+                // Success
+            }
+        });
+
+        BOOST_TEST(io.run() == 1);
+        BOOST_TEST(counter == 1);
     }
 
     return boost::report_errors();
