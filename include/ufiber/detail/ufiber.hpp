@@ -110,7 +110,11 @@ using result_t = typename select_result<Args...>::type;
 template<class... Args>
 struct promise
 {
-    promise() = default;
+    using result_type = result_t<Args...>;
+
+    promise()
+    {
+    }
 
     ~promise()
     {
@@ -119,7 +123,7 @@ struct promise
             case result_state::broken_promise:
                 break;
             case result_state::value:
-                result_.~result_t<Args...>();
+                result_.~result_type();
                 break;
         }
     }
@@ -128,11 +132,11 @@ struct promise
     void set_result(Ts&&... ts)
     {
         ::new (static_cast<void*>(&result_))
-          result_t<Args...>{std::forward<Ts>(ts)...};
+          result_type(std::forward<Ts>(ts)...);
         state_ = result_state::value;
     }
 
-    result_t<Args...> get_value()
+    result_type get_value()
     {
         switch (state_)
         {
@@ -146,7 +150,7 @@ struct promise
 private:
     result_state state_ = result_state::broken_promise;
     union {
-        result_t<Args...> result_;
+        result_type result_;
     };
 };
 
