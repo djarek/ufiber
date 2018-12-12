@@ -15,27 +15,27 @@
 namespace ufiber
 {
 
-template<class Executor, std::size_t slab_size>
-yield_token<Executor, slab_size>::yield_token(Executor const& ex,
-                                              detail::fiber_context& ctx)
+template<class Executor>
+yield_token<Executor>::yield_token(Executor const& ex,
+                                   detail::fiber_context& ctx)
   : ctx_{ctx}
   , executor_{ex}
 {
 }
-template<class Executor, std::size_t slab_size>
-typename yield_token<Executor, slab_size>::executor_type
-yield_token<Executor, slab_size>::get_executor() noexcept
+template<class Executor>
+typename yield_token<Executor>::executor_type
+yield_token<Executor>::get_executor() noexcept
 {
     return executor_;
 }
 
-template<class Executor, class F>
+template<class E, class F>
 auto
-spawn(Executor const& ex, F&& f) ->
-  typename std::enable_if<boost::asio::is_executor<Executor>::value>::type
+spawn(E const& ex, F&& f) ->
+  typename std::enable_if<boost::asio::is_executor<E>::value>::type
 {
-    detail::initial_resume(boost::context::fiber{
-      detail::fiber_main<typename std::decay<F>::type, Executor>{
+    detail::initial_resume(
+      boost::context::fiber{detail::fiber_main<typename std::decay<F>::type, E>{
         std::forward<F>(f), ex}});
 }
 

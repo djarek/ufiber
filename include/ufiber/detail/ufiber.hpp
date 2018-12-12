@@ -11,17 +11,17 @@
 #define UFIBER_DETAIL_UFIBER_HPP
 
 #include <ufiber/detail/config.hpp>
-#include <ufiber/detail/monotonic_allocator.hpp>
 
 #include <boost/asio/post.hpp>
 #include <boost/context/fiber.hpp>
+#include <boost/core/no_exceptions_support.hpp>
 
 #include <atomic>
 
 namespace ufiber
 {
 
-template<class Executor, std::size_t slab_size = 1024>
+template<class Executor>
 class yield_token;
 
 struct broken_promise;
@@ -56,9 +56,9 @@ private:
     std::atomic<bool> running_;
 };
 
-template<class Executor, std::size_t slab_size>
+template<class Executor>
 detail::fiber_context&
-get_fiber(yield_token<Executor, slab_size>& yt)
+get_fiber(yield_token<Executor>& yt)
 {
     return yt.ctx_;
 }
@@ -66,7 +66,7 @@ get_fiber(yield_token<Executor, slab_size>& yt)
 UFIBER_INLINE_DECL void
 initial_resume(boost::context::fiber&& f);
 
-enum class result_type
+enum class result_state
 {
     broken_promise,
     value,
@@ -75,22 +75,37 @@ enum class result_type
 class completion_handler_base
 {
 public:
-    using allocator_type = monotonic_allocator<void>;
-
     UFIBER_INLINE_DECL completion_handler_base(
       detail::fiber_context& ctx) noexcept;
 
-    UFIBER_INLINE_DECL allocator_type get_allocator() const noexcept;
-
-    UFIBER_INLINE_DECL void attach(void* promise,
-                                   memory_resource_base& mr) noexcept;
+    UFIBER_INLINE_DECL void attach(void* promise) noexcept;
 
     UFIBER_INLINE_DECL fiber_context& get_context() const noexcept;
 
 protected:
     std::unique_ptr<void, detail::fiber_context::resumer> promise_;
-    allocator_type allocator_;
 };
+
+template<class... Args>
+struct select_result
+{
+    using type = std::tuple<Args...>;
+};
+
+template<class Arg>
+struct select_result<Arg>
+{
+    using type = Arg;
+};
+
+template<>
+struct select_result<>
+{
+    using type = void;
+};
+
+template<class... Args>
+using result_t = typename select_result<Args...>::type;
 
 template<class... Args>
 struct promise
@@ -99,12 +114,12 @@ struct promise
 
     ~promise()
     {
-        switch (type_)
+        switch (state_)
         {
-            case result_type::broken_promise:
+            case result_state::broken_promise:
                 break;
-            case result_type::value:
-                result_.~tuple();
+            case result_state::value:
+                result_.~result_t<Args...>();
                 break;
         }
     }
@@ -113,15 +128,15 @@ struct promise
     void set_result(Ts&&... ts)
     {
         ::new (static_cast<void*>(&result_))
-          std::tuple<Args...>{std::forward<Ts>(ts)...};
-        type_ = result_type::value;
+          result_t<Args...>{std::forward<Ts>(ts)...};
+        state_ = result_state::value;
     }
 
-    std::tuple<Args...> get_value()
+    result_t<Args...> get_value()
     {
-        switch (type_)
+        switch (state_)
         {
-            case result_type::value:
+            case result_state::value:
                 return std::move(result_);
             default:
                 throw broken_promise{};
@@ -129,10 +144,21 @@ struct promise
     }
 
 private:
-    result_type type_ = result_type::broken_promise;
+    result_state state_ = result_state::broken_promise;
     union {
-        std::tuple<Args...> result_;
+        result_t<Args...> result_;
     };
+};
+
+template<>
+struct promise<>
+{
+    promise() = default;
+    UFIBER_INLINE_DECL void set_result() noexcept;
+    UFIBER_INLINE_DECL void get_value();
+
+private:
+    result_state state_ = result_state::broken_promise;
 };
 
 template<class Executor, class... Args>
@@ -141,8 +167,7 @@ class completion_handler : public completion_handler_base
 public:
     using executor_type = Executor;
 
-    template<std::size_t slab_size>
-    explicit completion_handler(yield_token<Executor, slab_size>& yt)
+    explicit completion_handler(yield_token<Executor>& yt)
       : completion_handler_base{detail::get_fiber(yt)}
       , executor_{yt.get_executor()}
     {
@@ -165,32 +190,31 @@ private:
     Executor executor_;
 };
 
-template<class F, class Executor, std::size_t slab_size = 1024>
+template<class F, class Executor>
 struct fiber_main
 {
     boost::context::fiber operator()(boost::context::fiber&& fiber)
     {
         fiber_context ctx{std::move(fiber)};
-        try
+        BOOST_TRY
         {
-            // Get on the right executor. Posting here, rather than in spawn()
-            // allows us to use the slab allocator.
-            yield_token<Executor, slab_size> token{std::move(executor), ctx};
+            yield_token<Executor> token{std::move(executor_), ctx};
             boost::asio::post(token);
-            f(std::move(token));
+            f_(std::move(token));
         }
-        catch (broken_promise const&)
+        BOOST_CATCH(broken_promise const&)
         {
             // Ignoring this exception allows an application to cleanup properly
-            // if there are pending operations when the
+            // if there are pending operations when
             // execution_context::shutdown() is called.
         }
+        BOOST_CATCH_END
 
         return std::move(ctx.final_suspend());
     }
 
-    F f;
-    Executor executor;
+    F f_;
+    Executor executor_;
 };
 
 } // namespace detail
@@ -201,19 +225,19 @@ namespace boost
 namespace asio
 {
 
-template<class Executor, std::size_t slab_size, class... Args>
-class async_result<::ufiber::yield_token<Executor, slab_size>, void(Args...)>
+template<class Executor, class... Args>
+class async_result<::ufiber::yield_token<Executor>, void(Args...)>
 {
 public:
     using completion_handler_type =
       ::ufiber::detail::completion_handler<Executor, Args...>;
 
-    using return_type = std::tuple<Args...>;
+    using return_type = ::ufiber::detail::result_t<Args...>;
 
     explicit async_result(completion_handler_type& cht)
       : ctx_{cht.get_context()}
     {
-        cht.attach(&promise_, memory_);
+        cht.attach(&promise_);
     }
 
     return_type get()
@@ -223,7 +247,6 @@ public:
     }
 
 private:
-    ::ufiber::detail::monotonic_memory_resource<slab_size> memory_;
     ::ufiber::detail::fiber_context& ctx_;
     ::ufiber::detail::promise<Args...> promise_;
 };

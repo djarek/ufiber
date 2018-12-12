@@ -15,9 +15,10 @@
 int
 main()
 {
-    // Check if destroying the io_context properly destroys the fibers.
+    // Check if destroying the io_context properly destroys the fibers if the
+    // operations are abandoned.
     int count = 0;
-    bool cleaned = false;
+    bool abandoned = false;
     auto f =
       [&](ufiber::yield_token<boost::asio::io_context::executor_type> yield) {
           ++count;
@@ -25,38 +26,39 @@ main()
           {
               boost::asio::post(yield);
           }
-          catch (ufiber::broken_promise const&)
+          catch (ufiber::broken_promise const ex)
           {
-              cleaned = true;
-              return;
+              BOOST_TEST(ex.what() == std::string{"Broken fiber promise"});
+              abandoned = true;
+              throw;
           }
           ++count;
       };
 
     {
-        cleaned = false;
+        abandoned = false;
         count = 0;
         boost::asio::io_context io{};
         ufiber::spawn(io, f);
 
         BOOST_TEST(io.run_one() > 0);
     }
-    BOOST_TEST(cleaned == true);
+    BOOST_TEST(abandoned == true);
     BOOST_TEST(count == 1);
 
     {
-        cleaned = false;
+        abandoned = false;
         count = 0;
         boost::asio::io_context io{};
         ufiber::spawn(io.get_executor(), f);
 
         BOOST_TEST(io.run_one() > 0);
     }
-    BOOST_TEST(cleaned == true);
+    BOOST_TEST(abandoned == true);
     BOOST_TEST(count == 1);
 
     {
-        cleaned = false;
+        abandoned = false;
         count = 0;
         boost::asio::io_context io{};
         ufiber::spawn(std::allocator_arg,
@@ -66,7 +68,7 @@ main()
 
         BOOST_TEST(io.run_one() > 0);
     }
-    BOOST_TEST(cleaned == true);
+    BOOST_TEST(abandoned == true);
     BOOST_TEST(count == 1);
 
     return boost::report_errors();

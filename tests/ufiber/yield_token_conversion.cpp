@@ -16,22 +16,23 @@
 int
 main()
 {
-    // Check if destroying the io_context properly destroys the fibers.
+    // Check if it's possible to do yield_token conversions (e.g. to type erase
+    // the executor)
     int count = 0;
-    auto f = [&](
-               ufiber::yield_token<boost::asio::io_context::executor_type> y) {
-        ++count;
-        ufiber::yield_token<boost::asio::io_context::executor_type, 0> yield{y};
-        // Check we don't get spawned into the system executor by accident
-        BOOST_TEST(yield.get_executor().running_in_this_thread());
-        boost::asio::post(yield);
-        BOOST_TEST(yield.get_executor().running_in_this_thread());
-        ++count;
-        ufiber::yield_token<boost::asio::executor, 256> yield2{y};
-        boost::asio::post(yield2);
-        BOOST_TEST(yield.get_executor().running_in_this_thread());
-        ++count;
-    };
+    auto f =
+      [&](ufiber::yield_token<boost::asio::io_context::executor_type> y) {
+          ++count;
+          ufiber::yield_token<boost::asio::io_context::executor_type> yield{y};
+          // Check we don't get spawned into the system executor by accident
+          BOOST_TEST(yield.get_executor().running_in_this_thread());
+          boost::asio::post(yield);
+          BOOST_TEST(yield.get_executor().running_in_this_thread());
+          ++count;
+          ufiber::yield_token<boost::asio::executor> yield2{y};
+          boost::asio::post(yield2);
+          BOOST_TEST(yield.get_executor().running_in_this_thread());
+          ++count;
+      };
 
     count = 0;
     boost::asio::io_context io{};

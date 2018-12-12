@@ -10,58 +10,118 @@
 #ifndef UFIBER_UFIBER_HPP
 #define UFIBER_UFIBER_HPP
 
-#include <boost/context/fiber.hpp>
 #include <ufiber/detail/ufiber.hpp>
-
-#include <atomic>
 
 namespace ufiber
 {
 
+/**
+ * Exception thrown if an asynchronous operation is abandoned. If this exception
+ * escapes the fiber's main function, the fiber will complete normally. This
+ * behavior is required so that an `io_context` abandoning work does not result
+ * in a call to std::terminate.
+ *
+ * @remark If this exception is thrown, the fiber may have been resumed outside
+ * its associated executor's context.
+ */
 struct broken_promise final : std::exception
 {
     UFIBER_INLINE_DECL char const* what() const noexcept final;
 };
 
-template<class Executor, std::size_t slab_size>
+/**
+ * A lightweight handle to the currently running fiber.
+ *
+ * @remark Use of a token outside the fiber it was created on results in
+ * undefined behavior, but it may safely by passed to functions that run on the
+ * current fiber's stack.
+ *
+ * @tparam Executor executor to be used to execute the asynchronous operations.
+ */
+template<class Executor>
 class yield_token
 {
 public:
-    template<class E, std::size_t N>
-    yield_token(yield_token<E, N> const& other)
+    /**
+     * Executor type associated with this yield_token object.
+     */
+    using executor_type = Executor;
+
+    /**
+     * Converting constructor.
+     * This function participates in overload resolution only if Executor is
+     * Constructible from E const&.
+     */
+    template<class E,
+             class = typename std::enable_if<
+               std::is_convertible<E&, Executor>::value>::type>
+    yield_token(yield_token<E> const& other)
       : ctx_{other.ctx_}
       , executor_{other.executor_}
     {
     }
 
-    using executor_type = Executor;
-
-    yield_token(Executor const& ex, detail::fiber_context&);
-
+    /**
+     * Returns the executor object associated with this yield_token object.
+     */
     executor_type get_executor() noexcept;
 
-    template<class E, std::size_t N>
-    friend detail::fiber_context& detail::get_fiber(yield_token<E, N>& yt);
+private:
+    yield_token(Executor const& ex, detail::fiber_context&);
 
-    template<class E, std::size_t N>
+    template<class E>
     friend class yield_token;
 
-private:
+    template<class F, class E>
+    friend struct detail::fiber_main;
+
+    template<class E>
+    friend detail::fiber_context& detail::get_fiber(yield_token<E>& yt);
+
     detail::fiber_context& ctx_;
     Executor executor_;
 };
 
-template<class Executor, class F>
+/**
+ * Spawns a new fiber on the provided executor. The fiber will invoke a
+ * DECAY_COPY of F. This function participates in overload resolution if and
+ * only if E is an Executor.
+ *
+ * @param ex the executor that will be associated with the fiber.
+ * @param f the function object that will be invoked as the fiber's main
+ * function.
+ */
+template<class E, class F>
 auto
-spawn(Executor const& ex, F&& f) ->
-  typename std::enable_if<boost::asio::is_executor<Executor>::value>::type;
+spawn(E const& ex, F&& f) ->
+  typename std::enable_if<boost::asio::is_executor<E>::value>::type;
 
+/**
+ * Spawns a new fiber on the provided ExecutionContext. The fiber will invoke a
+ * DECAY_COPY of F. This function participates in overload resolution if and
+ * only if ExecutionContext is publicly derived from
+ * boost::asio::execution_context.
+ *
+ * @param e the ExecutionContext that will be associated with the fiber.
+ * @param f the function object that will be invoked as the fiber's main
+ * function.
+ */
 template<class ExecutionContext, class F>
 auto
 spawn(ExecutionContext& e, F&& f) -> typename std::enable_if<
   std::is_convertible<ExecutionContext&,
                       boost::asio::execution_context&>::value>::type;
 
+/**
+ * Spawns a new fiber on the provided executor. The fiber will invoke a
+ * DECAY_COPY of F. The provided StackAllocator will be used to allocate the
+ * fiber's stack. Refer to the StackAllocator concept in boost::context for more
+ * information.
+ *
+ * @param ex the executor that will be associated with the fiber.
+ * @param f the function object that will be invoked as the fiber's main
+ * function.
+ */
 template<class StackAllocator, class Executor, class F>
 void
 spawn(std::allocator_arg_t arg, StackAllocator&& sa, Executor const& ex, F&& f);

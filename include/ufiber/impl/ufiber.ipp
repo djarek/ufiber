@@ -10,7 +10,6 @@
 #ifndef UFIBER_IMPL_UFIBER_IPP
 #define UFIBER_IMPL_UFIBER_IPP
 
-#include <ufiber/detail/monotonic_allocator.hpp>
 #include <ufiber/ufiber.hpp>
 
 #include <cassert>
@@ -79,18 +78,10 @@ completion_handler_base::completion_handler_base(
 {
 }
 
-completion_handler_base::allocator_type
-completion_handler_base::get_allocator() const noexcept
-{
-    return allocator_;
-}
-
 void
-completion_handler_base::attach(void* promise,
-                                memory_resource_base& mr) noexcept
+completion_handler_base::attach(void* promise) noexcept
 {
     promise_.reset(promise);
-    allocator_ = allocator_type{mr};
 }
 
 fiber_context&
@@ -99,22 +90,24 @@ completion_handler_base::get_context() const noexcept
     return promise_.get_deleter().ctx;
 }
 
-monotonic_allocator<void>::monotonic_allocator(
-  memory_resource_base& mr) noexcept
-  : mr_{&mr}
+void
+promise<>::set_result() noexcept
 {
-}
-
-void*
-monotonic_memory_resource<0>::allocate(std::size_t size, std::size_t)
-{
-    return ::operator new(size);
+    state_ = result_state::value;
 }
 
 void
-monotonic_memory_resource<0>::deallocate(void* p) noexcept
+promise<>::get_value()
 {
-    ::operator delete(p);
+    {
+        switch (state_)
+        {
+            case result_state::value:
+                return;
+            default:
+                throw broken_promise{};
+        }
+    }
 }
 
 } // detail
