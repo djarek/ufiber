@@ -1,6 +1,7 @@
 set (ufiber_tests_srcs
-    ufiber/spawn_discard.cpp
     ufiber/spawn.cpp
+    ufiber/spawn_discard.cpp
+    ufiber/spawn_threaded.cpp
     ufiber/yield_token_conversion.cpp)
 
 function (ufiber_add_test test_file)
