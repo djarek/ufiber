@@ -17,14 +17,15 @@ endif()
 
 find_package(Boost 1.67
              COMPONENTS
-                system
                 context
+                system
              REQUIRED)
 
 find_package (Threads)
 
 
 add_library(ufiber INTERFACE)
+add_library(ufiber::ufiber ALIAS ufiber)
 
 target_include_directories(ufiber INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -35,7 +36,6 @@ target_link_libraries(
     ufiber
     INTERFACE
         Boost::boost
-        Boost::system
         Boost::context
         Threads::Threads)
 
