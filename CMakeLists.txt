@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 project(ufiber VERSION 0.1 LANGUAGES CXX)
 
+option(UFIBER_SANITIZE "Build ufiber tests and examples with address & underfined sanitization enabled" OFF)
+if (UFIBER_SANITIZE)
+    message(WARNING "Sanitizers enabled")
+    add_compile_options(-fsanitize=address,undefined)
+endif()
+
 list(INSERT CMAKE_MODULE_PATH 0 ${PROJECT_SOURCE_DIR}/CMakeModules)
 
 if (CMAKE_VERSION VERSION_LESS 3.11)
@@ -38,6 +44,8 @@ target_link_libraries(
         Boost::boost
         Boost::context
         Threads::Threads)
+
+target_compile_features(ufiber INTERFACE cxx_std_11)
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
