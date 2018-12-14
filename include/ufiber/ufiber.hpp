@@ -72,7 +72,7 @@ private:
     template<class E>
     friend class yield_token;
 
-    template<class F, class E>
+    template<class F, class E, class Ex>
     friend struct detail::fiber_main;
 
     template<class E>
