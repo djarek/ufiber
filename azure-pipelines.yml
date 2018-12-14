@@ -22,7 +22,7 @@ jobs:
           CMAKE_VARIANT: Debug
           CXX: g++-8
           CC: gcc-8
-          CXXFLAGS: '-fsanitize=address,undefined -pthread'
+          SANITIZE: On
           INSTALL_PPAS: sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
         # clangdebug:
         #   CMAKE_VARIANT: Debug
@@ -38,11 +38,11 @@ jobs:
         #   CXX: clang
         #   CC: clang
     steps:
-      - script: $INSTALL_PPAS && sudo apt-get update -y && sudo apt-get install $CXX cmake -y
+      - script: $INSTALL_PPAS && sudo apt-get update -y && sudo apt-get install $CXX binutils-gold cmake -y
         displayName: 'Install compiler'
       - script: ./tools/get_boost.sh
         displayName: 'Get Boost'
-      - script: cmake -H. -Bbuild -DCMAKE_CXX_FLAGS="$CXXFLAGS" -DCMAKE_BUILD_TYPE=$CMAKE_VARIANT && make -C build
+      - script: cmake -H. -Bbuild -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=gold -DUFIBER_SANITIZE=$SANITIZE -DCMAKE_BUILD_TYPE=$CMAKE_VARIANT && make -C build
         displayName: 'Build'
       - script: cd build && ctest --output-on-failure
         displayName: 'Run tests'
