@@ -42,6 +42,7 @@ target_link_libraries(
     ufiber
     INTERFACE
         Boost::boost
+        Boost::system
         Boost::context
         Threads::Threads)
 

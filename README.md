@@ -18,7 +18,7 @@ deprecated Boost libraries, so it generates no deprecation warnings when used.
 ## Dependencies
 μfiber depends on:
 - Boost.Context
-- Boost.ASIO (header-only)
+- Boost.ASIO
 
 ## Installation
 μfiber is header-only, so you only need to add the include directory to the
