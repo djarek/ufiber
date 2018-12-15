@@ -8,6 +8,13 @@ jobs:
       vmImage: 'Ubuntu-16.04'
     strategy:
       matrix:
+        gccdefault_coverage:
+          CMAKE_VARIANT: Debug
+          CXXFLAGS: '-fprofile-arcs --coverage'
+          CXX: g++
+          CC: gcc
+          INSTALL_PPAS: sudo apt install lcov -y
+          SKIP_COVERAGE: 'false'
         gcc7debug:
           CMAKE_VARIANT: Debug
           CXX: g++-7
@@ -46,4 +53,7 @@ jobs:
         displayName: 'Build'
       - script: cd build && ctest --output-on-failure
         displayName: 'Run tests'
+      - script: ./tools/coverage.sh && curl -s https://codecov.io/bash -o codecov && bash ./codecov -X gcov -f build/coverage.info -t $(CODECOV_TOKEN)
+        displayName: 'Collect coverage'
+        condition: and(succeeded(), eq(variables['SKIP_COVERAGE'], 'false'))
 
