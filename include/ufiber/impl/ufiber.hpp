@@ -39,25 +39,24 @@ spawn(E const& ex, F&& f) ->
         std::forward<F>(f), ex}});
 }
 
-template<class ExecutionContext, class F>
+template<class E, class F>
 auto
-spawn(ExecutionContext& e, F&& f) -> typename std::enable_if<
-  std::is_convertible<ExecutionContext&,
-                      boost::asio::execution_context&>::value>::type
+spawn(E& e, F&& f) -> typename std::enable_if<
+  std::is_convertible<E&, boost::asio::execution_context&>::value>::type
 {
-    detail::initial_resume(boost::context::fiber{
-      detail::fiber_main<typename std::decay<F>::type,
-                         typename ExecutionContext::executor_type>{
+    detail::initial_resume(
+      boost::context::fiber{detail::fiber_main<typename std::decay<F>::type,
+                                               typename E::executor_type>{
         std::forward<F>(f), e.get_executor()}});
 }
 
-template<class StackAllocator, class Executor, class F>
+template<class Alloc, class Executor, class F>
 void
-spawn(std::allocator_arg_t arg, StackAllocator&& sa, Executor const& ex, F&& f)
+spawn(std::allocator_arg_t arg, Alloc&& sa, Executor const& ex, F&& f)
 {
     detail::initial_resume(boost::context::fiber{
       arg,
-      std::forward<StackAllocator>(sa),
+      std::forward<Alloc>(sa),
       detail::fiber_main<typename std::decay<F>::type, Executor>{
         std::forward<F>(f), ex}});
 }

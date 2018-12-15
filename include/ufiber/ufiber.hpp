@@ -12,8 +12,19 @@
 
 #include <ufiber/detail/ufiber.hpp>
 
+/**
+ * @file
+ * Main API header of the library.
+ */
+
 namespace ufiber
 {
+
+/**
+ * @mainpage μfiber library
+ *
+ * @ref ufiber
+ */
 
 /**
  * Exception thrown if an asynchronous operation is abandoned. If this exception
@@ -84,7 +95,7 @@ private:
 
 /**
  * Spawns a new fiber on the provided executor. The fiber will invoke a
- * DECAY_COPY of F. This function participates in overload resolution if and
+ * `DECAY_COPY` of F. This function participates in overload resolution if and
  * only if E is an Executor.
  *
  * @param ex the executor that will be associated with the fiber.
@@ -98,33 +109,35 @@ spawn(E const& ex, F&& f) ->
 
 /**
  * Spawns a new fiber on the provided ExecutionContext. The fiber will invoke a
- * DECAY_COPY of F. This function participates in overload resolution if and
+ * `DECAY_COPY` of F. This function participates in overload resolution if and
  * only if ExecutionContext is publicly derived from
- * boost::asio::execution_context.
+ * `boost::asio::execution_context`.
  *
  * @param e the ExecutionContext that will be associated with the fiber.
  * @param f the function object that will be invoked as the fiber's main
  * function.
  */
-template<class ExecutionContext, class F>
+template<class E, class F>
 auto
-spawn(ExecutionContext& e, F&& f) -> typename std::enable_if<
-  std::is_convertible<ExecutionContext&,
-                      boost::asio::execution_context&>::value>::type;
+spawn(E& e, F&& f) -> typename std::enable_if<
+  std::is_convertible<E&, boost::asio::execution_context&>::value>::type;
 
 /**
  * Spawns a new fiber on the provided executor. The fiber will invoke a
- * DECAY_COPY of F. The provided StackAllocator will be used to allocate the
+ * `DECAY_COPY` of F. The provided StackAllocator will be used to allocate the
  * fiber's stack. Refer to the StackAllocator concept in boost::context for more
  * information.
  *
+ * @param arg std::allocator_arg tag to disambiguate overloads.
+ * @param sa an object that satisfies the requirements of the StackAllocator
+ * concept.
  * @param ex the executor that will be associated with the fiber.
  * @param f the function object that will be invoked as the fiber's main
  * function.
  */
-template<class StackAllocator, class Executor, class F>
+template<class Alloc, class E, class F>
 void
-spawn(std::allocator_arg_t arg, StackAllocator&& sa, Executor const& ex, F&& f);
+spawn(std::allocator_arg_t arg, Alloc&& sa, E const& ex, F&& f);
 
 } // namespace ufiber
 
