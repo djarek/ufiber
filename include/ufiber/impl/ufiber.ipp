@@ -26,6 +26,17 @@ broken_promise::what() const noexcept
 namespace detail
 {
 
+#ifndef BOOST_NO_EXCEPTIONS
+[[noreturn]] void
+throw_broken_promise()
+{
+    // If you disable exceptions you'll need to provide your own definition of
+    // this function, which is called when an asynchronous operation is
+    // abandoned (e.g. during a hard shutdown of an `io_context`).
+    throw broken_promise{};
+}
+#endif // BOOST_NO_EXCEPTIONS
+
 fiber_context::fiber_context(boost::context::fiber&& f)
   : fiber_{std::move(f)}
   , running_{true}

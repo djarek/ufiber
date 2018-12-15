@@ -30,6 +30,9 @@ struct broken_promise;
 namespace detail
 {
 
+[[noreturn]] UFIBER_INLINE_DECL void
+throw_broken_promise();
+
 class fiber_context
 {
 public:
@@ -145,7 +148,7 @@ struct promise
             case result_state::value:
                 return std::move(result_);
             default:
-                throw broken_promise{};
+                detail::throw_broken_promise();
         }
     }
 
@@ -196,7 +199,7 @@ private:
     Executor executor_;
 };
 
-template<class F, class Executor>
+template<class F, class Executor, class Exception = broken_promise>
 struct fiber_main
 {
     boost::context::fiber operator()(boost::context::fiber&& fiber)
@@ -208,15 +211,14 @@ struct fiber_main
             boost::asio::post(token);
             f_(std::move(token));
         }
-        BOOST_CATCH(broken_promise const&)
+        BOOST_CATCH(Exception const&)
         {
             // Ignoring this exception allows an application to cleanup properly
             // if there are pending operations when
             // execution_context::shutdown() is called.
         }
         BOOST_CATCH_END
-
-        return std::move(ctx.final_suspend());
+        return ctx.final_suspend();
     }
 
     F f_;

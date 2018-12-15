@@ -1,0 +1,49 @@
+trigger:
+- master
+
+jobs:
+  - job: Linux
+    displayName: 'Linux'
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    strategy:
+      matrix:
+        gcc7debug:
+          CMAKE_VARIANT: Debug
+          CXX: g++-7
+          CC: gcc-7
+          INSTALL_PPAS: sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        gcc8release:
+          CMAKE_VARIANT: Release
+          CXX: g++-8
+          CC: gcc-8
+          INSTALL_PPAS: sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        gcc8asan:
+          CMAKE_VARIANT: Debug
+          CXX: g++-8
+          CC: gcc-8
+          SANITIZE: On
+          INSTALL_PPAS: sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        # clangdebug:
+        #   CMAKE_VARIANT: Debug
+        #   CXX: clang
+        #   CC: clang
+        # clangasan:
+        #   CMAKE_VARIANT: Debug
+        #   CXX: clang
+        #   CC: clang
+        #   CXXFLAGS: -fsanitize=address,undefined -pthread
+        # clangrelease:
+        #   CMAKE_VARIANT: Release
+        #   CXX: clang
+        #   CC: clang
+    steps:
+      - script: $INSTALL_PPAS && sudo apt-get update -y && sudo apt-get install $CXX binutils-gold cmake -y
+        displayName: 'Install compiler'
+      - script: ./tools/get_boost.sh
+        displayName: 'Get Boost'
+      - script: cmake -H. -Bbuild -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=gold -DUFIBER_SANITIZE=$SANITIZE -DCMAKE_BUILD_TYPE=$CMAKE_VARIANT && make -C build
+        displayName: 'Build'
+      - script: cd build && ctest --output-on-failure
+        displayName: 'Run tests'
+

@@ -9,7 +9,6 @@ function (ufiber_add_test test_file)
     add_executable(${target_name} ${test_file})
     target_link_libraries(${target_name} ufiber::ufiber)
     target_compile_options(${target_name} PRIVATE -Wall -Wextra -pedantic -std=c++11)
-    target_compile_definitions(${target_name} PRIVATE)
 
     add_test(NAME "${target_name}_tests"
              COMMAND ${target_name})

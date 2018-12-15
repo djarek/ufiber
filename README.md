@@ -1,9 +1,9 @@
 # μfiber, a fiber library in C++11, compatible with Boost.ASIO
 
 
-| Linux/OSX   | Windows | Coverage
-|-------------|---------|---------
-| TODO        | TODO    | TODO
+| Build | Coverage
+|-------|---------
+| [![Build Status](https://dev.azure.com/damianjarek93/ufiber/_apis/build/status/djarek.ufiber?branchName=master)](https://dev.azure.com/damianjarek93/ufiber/_build/latest?definitionId=1?branchName=master)        | TODO
 
 
 ## Introduction
@@ -18,7 +18,7 @@ deprecated Boost libraries, so it generates no deprecation warnings when used.
 ## Dependencies
 μfiber depends on:
 - Boost.Context
-- Boost.ASIO (header-only)
+- Boost.ASIO
 
 ## Installation
 μfiber is header-only, so you only need to add the include directory to the
