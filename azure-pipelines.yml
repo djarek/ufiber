@@ -57,3 +57,21 @@ jobs:
         displayName: 'Collect coverage'
         condition: and(succeeded(), eq(variables['SKIP_COVERAGE'], 'false'))
 
+  - job: MacOS
+    pool:
+      vmImage: 'macOS-10.13'
+    strategy:
+      matrix:
+        clang_release:
+          CMAKE_VARIANT: Release
+        # brew-installed boost is missing the ASAN flags for the ASAN tests to pass
+        # clang_asan:
+        #   CMAKE_VARIANT: Debug
+        #   SANITIZE: On
+    steps:
+      - script: brew install boost
+        displayName: Brew install dependencies
+      - script: cmake -H. -Bbuild -DUFIBER_SANITIZE=$SANITIZE -DCMAKE_BUILD_TYPE=$CMAKE_VARIANT && make -C build
+        displayName: 'Build'
+      - script: cd build && ctest --output-on-failure
+        displayName: 'Run tests'
