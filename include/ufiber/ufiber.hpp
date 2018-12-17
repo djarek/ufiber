@@ -117,10 +117,10 @@ spawn(E const& ex, F&& f) ->
  * @param f the function object that will be invoked as the fiber's main
  * function.
  */
-template<class E, class F>
+template<class Ctx, class F>
 auto
-spawn(E& e, F&& f) -> typename std::enable_if<
-  std::is_convertible<E&, boost::asio::execution_context&>::value>::type;
+spawn(Ctx& ctx, F&& f) -> typename std::enable_if<
+  std::is_convertible<Ctx&, boost::asio::execution_context&>::value>::type;
 
 /**
  * Spawns a new fiber on the provided executor. The fiber will invoke a

@@ -31,7 +31,7 @@ struct echo_session
             // bindings can be used instead.
             std::tie(ec, n) =
               socket_.async_read_some(buffer.prepare(buffer.max_size()), yield);
-            if (!ec)
+            if (ec)
             {
                 std::cerr << "Error while reading from socket: " << ec.message()
                           << '\n';
@@ -41,7 +41,7 @@ struct echo_session
             buffer.commit(n);
             std::tie(ec, n) =
               boost::asio::async_write(socket_, buffer.data(), yield);
-            if (!ec)
+            if (ec)
             {
                 std::cerr << "Error while writing to socket: " << ec.message()
                           << '\n';
@@ -74,7 +74,7 @@ accept(ufiber::yield_token<net::io_context::executor_type> yield)
         // When an async operation returns 1 result, it's not wrapped into a
         // tuple, so we can just use it directly.
         boost::system::error_code ec = acceptor.async_accept(s, yield);
-        if (!ec)
+        if (ec)
         {
             std::cerr << "Error when trying to accept: " << ec.message()
                       << '\n';

@@ -39,15 +39,15 @@ spawn(E const& ex, F&& f) ->
         std::forward<F>(f), ex}});
 }
 
-template<class E, class F>
+template<class Ctx, class F>
 auto
-spawn(E& e, F&& f) -> typename std::enable_if<
-  std::is_convertible<E&, boost::asio::execution_context&>::value>::type
+spawn(Ctx& ctx, F&& f) -> typename std::enable_if<
+  std::is_convertible<Ctx&, boost::asio::execution_context&>::value>::type
 {
     detail::initial_resume(
       boost::context::fiber{detail::fiber_main<typename std::decay<F>::type,
-                                               typename E::executor_type>{
-        std::forward<F>(f), e.get_executor()}});
+                                               typename Ctx::executor_type>{
+        std::forward<F>(f), ctx.get_executor()}});
 }
 
 template<class Alloc, class Executor, class F>
