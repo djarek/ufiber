@@ -28,7 +28,6 @@ target_include_directories(ufiber INTERFACE
 target_link_libraries(
     ufiber
     INTERFACE
-        Boost::boost
         Boost::system
         Boost::context
         Threads::Threads)
@@ -47,7 +46,9 @@ include(GNUInstallDirs)
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILES_MATCHING PATTERN "*.hpp")
+        FILES_MATCHING
+            PATTERN "*.hpp"
+            PATTERN "*.ipp")
 
 install(TARGETS ufiber
         EXPORT ufiberTargets
