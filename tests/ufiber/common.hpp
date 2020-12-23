@@ -22,7 +22,6 @@ auto
 async_op_1arg(boost::asio::io_context& ctx, int val, CompletionToken&& tok)
   -> BOOST_ASIO_INITFN_RESULT_TYPE(CompletionToken, void(int))
 {
-    boost::asio::async_completion<CompletionToken, void(int)> init{tok};
     using handler_t = BOOST_ASIO_HANDLER_TYPE(CompletionToken, void(int));
     struct op
     {
@@ -35,10 +34,13 @@ async_op_1arg(boost::asio::io_context& ctx, int val, CompletionToken&& tok)
         int val_;
     };
 
-    auto ex = boost::asio::get_associated_executor(init.completion_handler,
-                                                   ctx.get_executor());
-    boost::asio::post(ex, op{std::move(init.completion_handler), val});
-    return init.result.get();
+    return boost::asio::async_initiate<CompletionToken, void(int)>(
+      [&](handler_t&& handler) {
+          auto ex =
+            boost::asio::get_associated_executor(handler, ctx.get_executor());
+          boost::asio::post(ex, op{std::move(handler), val});
+      },
+      std::forward<CompletionToken>(tok));
 }
 
 template<class CompletionToken>
@@ -50,9 +52,6 @@ async_op_2arg(boost::asio::io_context& ctx,
   -> BOOST_ASIO_INITFN_RESULT_TYPE(CompletionToken,
                                    void(int, std::unique_ptr<int>))
 {
-    boost::asio::async_completion<CompletionToken,
-                                  void(int, std::unique_ptr<int>)>
-      init{tok};
     using handler_t =
       BOOST_ASIO_HANDLER_TYPE(CompletionToken, void(int, std::unique_ptr<int>));
     struct op
@@ -67,11 +66,14 @@ async_op_2arg(boost::asio::io_context& ctx,
         std::unique_ptr<int> val2_;
     };
 
-    auto ex = boost::asio::get_associated_executor(init.completion_handler,
-                                                   ctx.get_executor());
-    boost::asio::post(
-      ex, op{std::move(init.completion_handler), val1, std::move(val2)});
-    return init.result.get();
+    return boost::asio::async_initiate<CompletionToken,
+                                       void(int, std::unique_ptr<int>)>(
+      [&](handler_t&& handler) {
+          auto ex =
+            boost::asio::get_associated_executor(handler, ctx.get_executor());
+          boost::asio::post(ex, op{std::move(handler), val1, std::move(val2)});
+      },
+      std::forward<CompletionToken>(tok));
 }
 
 } // namespace test

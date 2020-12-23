@@ -2,13 +2,17 @@
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
-#include <boost/beast/core/static_buffer.hpp>
 #include <iostream>
 
 namespace echo
 {
 namespace net = boost::asio;
-namespace beast = boost::beast;
+
+using tcp_socket =
+  net::basic_stream_socket<net::ip::tcp, net::io_context::executor_type>;
+
+using tcp_acceptor =
+  net::basic_socket_acceptor<net::ip::tcp, net::io_context::executor_type>;
 
 namespace
 {
@@ -19,9 +23,8 @@ struct echo_session
 {
     void operator()(ufiber::yield_token<net::io_context::executor_type> yield)
     {
-        // Make use of the fiber's stack by placing a static buffer on it,
-        // `static_buffer` does not perform dynamic memory allocation.
-        beast::static_buffer<8192> buffer;
+        // Make use of the fiber's stack by placing a static buffer on it.
+        std::uint8_t buffer[8192];
         for (;;)
         {
             boost::system::error_code ec;
@@ -30,7 +33,7 @@ struct echo_session
             // of an async operation into stack variables. In C++17, structured
             // bindings can be used instead.
             std::tie(ec, n) =
-              socket_.async_read_some(buffer.prepare(buffer.max_size()), yield);
+              socket_.async_read_some(boost::asio::buffer(buffer), yield);
             if (ec)
             {
                 std::cerr << "Error while reading from socket: " << ec.message()
@@ -38,21 +41,18 @@ struct echo_session
                 return;
             }
 
-            buffer.commit(n);
             std::tie(ec, n) =
-              boost::asio::async_write(socket_, buffer.data(), yield);
+              boost::asio::async_write(socket_, boost::asio::buffer(buffer, n), yield);
             if (ec)
             {
                 std::cerr << "Error while writing to socket: " << ec.message()
                           << '\n';
                 return;
             }
-
-            buffer.consume(n);
         }
     }
 
-    net::ip::tcp::socket socket_;
+    tcp_socket socket_;
 };
 
 // μfiber uses a yield_token that has an Executor parameter, so no type-erasure
@@ -65,10 +65,10 @@ void
 accept(ufiber::yield_token<net::io_context::executor_type> yield)
 {
     auto ex = yield.get_executor();
-    net::ip::tcp::acceptor acceptor{
+    tcp_acceptor acceptor{
       ex.context(), net::ip::tcp::endpoint{net::ip::address_v6::any(), 8000}};
 
-    net::ip::tcp::socket s{ex.context()};
+    tcp_socket s{ex.context()};
     for (;;)
     {
         // When an async operation returns 1 result, it's not wrapped into a

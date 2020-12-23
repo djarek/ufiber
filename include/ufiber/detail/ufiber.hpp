@@ -30,6 +30,8 @@ struct broken_promise;
 namespace detail
 {
 
+class void_fn_ref;
+
 [[noreturn]] UFIBER_INLINE_DECL void
 throw_broken_promise();
 
@@ -40,7 +42,6 @@ public:
     {
         UFIBER_INLINE_DECL void operator()(void* promise) noexcept;
         fiber_context& ctx_;
-        std::thread::id id_;
     };
 
     UFIBER_INLINE_DECL explicit fiber_context(boost::context::fiber&& f);
@@ -50,7 +51,18 @@ public:
     fiber_context& operator=(fiber_context&&) = delete;
     fiber_context& operator=(fiber_context const&) = delete;
 
-    UFIBER_INLINE_DECL void suspend() noexcept;
+    template<class F>
+    void suspend_with(F&& init) noexcept
+    {
+        fiber_ = std::move(fiber_).resume_with(
+          [this, &init](boost::context::fiber&& f) {
+              fiber_ = std::move(f);
+              init();
+              return boost::context::fiber{};
+          });
+        assert(fiber_ && "Expected caller fiber");
+        // fiber_ should contain the main thread's stack at this point
+    }
 
     UFIBER_INLINE_DECL void resume() noexcept;
 
@@ -58,7 +70,6 @@ public:
 
 private:
     boost::context::fiber fiber_;
-    std::atomic<bool> running_;
 };
 
 template<class Executor>
@@ -75,20 +86,6 @@ enum class result_state
 {
     broken_promise,
     value,
-};
-
-class completion_handler_base
-{
-public:
-    UFIBER_INLINE_DECL completion_handler_base(
-      detail::fiber_context& ctx) noexcept;
-
-    UFIBER_INLINE_DECL void attach(void* promise) noexcept;
-
-    UFIBER_INLINE_DECL fiber_context& get_context() const noexcept;
-
-protected:
-    std::unique_ptr<void, detail::fiber_context::resumer> promise_;
 };
 
 template<class... Args>
@@ -121,6 +118,11 @@ struct promise
     {
     }
 
+    promise(promise&&) = delete;
+    promise(promise const&) = delete;
+    promise& operator=(promise&&) = delete;
+    promise& operator=(promise const&) = delete;
+
     ~promise()
     {
         switch (state_)
@@ -136,7 +138,7 @@ struct promise
     template<class... Ts>
     void set_result(Ts&&... ts)
     {
-        ::new (static_cast<void*>(&result_))
+        ::new (static_cast<void*>(std::addressof(result_)))
           result_type(std::forward<Ts>(ts)...);
         state_ = result_state::value;
     }
@@ -171,20 +173,14 @@ private:
 };
 
 template<class Executor, class... Args>
-class completion_handler : public completion_handler_base
+struct completion_handler
 {
-public:
-    using executor_type = Executor;
-
-    explicit completion_handler(yield_token<Executor>& yt)
-      : completion_handler_base{detail::get_fiber(yt)}
+    explicit completion_handler(void* promise,
+                                yield_token<Executor>& yt,
+                                fiber_context& ctx)
+      : promise_{promise, fiber_context::resumer{ctx}}
       , executor_{yt.get_executor()}
     {
-    }
-
-    executor_type get_executor() const noexcept
-    {
-        return executor_;
     }
 
     template<class... Ts>
@@ -195,7 +191,7 @@ public:
         this->promise_.reset();
     }
 
-private:
+    std::unique_ptr<void, detail::fiber_context::resumer> promise_;
     Executor executor_;
 };
 
@@ -242,21 +238,36 @@ public:
 
     using return_type = ::ufiber::detail::result_t<Args...>;
 
-    explicit async_result(completion_handler_type& cht)
-      : ctx_{cht.get_context()}
+    template<class Op, class Token, class... Ts>
+    static return_type initiate(Op&& op, Token&& token, Ts&&... ts)
     {
-        cht.attach(&promise_);
+        ::ufiber::detail::promise<Args...> promise;
+        ::ufiber::detail::fiber_context& ctx =
+          ::ufiber::detail::get_fiber(token);
+        completion_handler_type handler{&promise, token, ctx};
+        ctx.suspend_with([&]() noexcept {
+            op(std::move(handler), std::forward<Ts>(ts)...);
+        });
+        return promise.get_value();
     }
 
-    return_type get()
-    {
-        ctx_.suspend(); // what if initiating the composed operation throws?
-        return promise_.get_value();
-    }
+    return_type get() = delete;
+};
 
-private:
-    ::ufiber::detail::fiber_context& ctx_;
-    ::ufiber::detail::promise<Args...> promise_;
+template<class Executor, class E, class... Args>
+class associated_executor<
+  ::ufiber::detail::completion_handler<Executor, Args...>,
+  E>
+{
+public:
+    using type = Executor;
+
+    static type get(
+      ::ufiber::detail::completion_handler<Executor, Args...> const& h,
+      E const& = E())
+    {
+        return h.executor_;
+    }
 };
 
 } // asio

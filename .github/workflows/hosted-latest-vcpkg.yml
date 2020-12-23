@@ -1,0 +1,79 @@
+# Copyright (c) 2019-2020 Luca Cappa
+# Copyright (c) 2020 Damian Jarek
+# SPDX short identifier: MIT
+
+name: hosted-latest-vcpkg
+on: [push]
+
+jobs:
+  job:
+    name: ${{ matrix.os }}-hosted-basic
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: windows-latest
+            triplet: x64-windows
+            vcpkgCommitId: 'ec6fe06e8da05a8157dc8581fa96b36b571c1bd5'
+            cmakeAppendedArgs: '-GNinja'
+          - os: ubuntu-latest
+            triplet: x64-linux
+            vcpkgCommitId: 'ec6fe06e8da05a8157dc8581fa96b36b571c1bd5'
+            cmakeAppendedArgs: '-GNinja -DCMAKE_CXX_FLAGS="-fprofile-arcs --coverage -Wall -Wextra -Werror -pedantic"'
+            collectCoverage: true
+
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+
+      - uses: lukka/get-cmake@latest
+      - name: dir
+        run: find $RUNNER_WORKSPACE
+        shell: bash
+      - name: Restore artifacts, or setup vcpkg (do not install any package)
+        uses: lukka/run-vcpkg@v6
+        with:
+          setupOnly: true
+          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+          appendedCacheKey: ${{ hashFiles( '**/vcpkg_manifest/vcpkg.json' ) }}
+          vcpkgTriplet: ${{ matrix.triplet }}
+      - name: dir
+        run: find $RUNNER_WORKSPACE
+        shell: bash
+      - name: Prints outputs of run-vcpkg task
+        run: echo "'${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_ROOT_OUT }}' '${{  steps.runvcpkg.outputs.RUNVCPKG_VCPKG_TRIPLET_OUT }}' "
+      - name: Run CMake+Ninja with triplet
+        uses: lukka/run-cmake@v3
+        id: runcmake_cmd
+        with:
+          cmakeGenerator: 'Ninja'
+          cmakeListsOrSettingsJson: 'CMakeListsTxtAdvanced'
+          cmakeListsTxtPath: '${{ github.workspace }}/CMakeLists.txt'
+          useVcpkgToolchainFile: true
+          buildWithCMakeArgs: '-- -v'
+          vcpkgTriplet: ${{ steps.runvcpkg.outputs.RUNVCPKG_VCPKG_TRIPLET_OUT }}
+          buildDirectory: '${{ runner.workspace }}/b/ninja/'
+          cmakeAppendedArgs: ${{ matrix.cmakeAppendedArgs }}
+      - name: Run tests
+        run: cd ${{ runner.workspace }}/b/ninja/ && ctest -V
+      - name: Install lcov
+        if: ${{ matrix.collectCoverage }}
+        run: sudo apt install -y lcov
+        shell: bash
+      - name: Run lcov
+        if: ${{ matrix.collectCoverage }}
+        run: ./tools/coverage.sh ${{ runner.workspace }}/b/ninja/
+        shell: bash
+      - name: Upload coverage to Codecov
+        if: ${{ matrix.collectCoverage }}
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ${{ runner.workspace }}/b/ninja/coverage.info
+          directory: ${{ runner.workspace }}/b/ninja/reports/
+          fail_ci_if_error: true
+          path_to_write_report: ${{ runner.workspace }}/b/ninja/codecov_report.txt
+          verbose: true

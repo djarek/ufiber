@@ -2,7 +2,7 @@
 
 Language|Build | Coverage| License |
 |-------|------|---------|---------|
-|[![Standard](https://img.shields.io/badge/C%2B%2B-11-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization) | [![Build Status](https://dev.azure.com/damianjarek93/ufiber/_apis/build/status/djarek.ufiber?branchName=master)](https://dev.azure.com/damianjarek93/ufiber/_build/latest?definitionId=1?branchName=master) | [![codecov](https://codecov.io/gh/djarek/ufiber/branch/master/graph/badge.svg)](https://codecov.io/gh/djarek/ufiber) | [![License](https://img.shields.io/badge/license-BSL%201.0-blue.svg)](https://opensource.org/licenses/BSL-1.0)
+|[![Standard](https://img.shields.io/badge/C%2B%2B-11-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization) | ![hosted-latest-vcpkg](https://github.com/djarek/ufiber/workflows/hosted-latest-vcpkg/badge.svg)| [![codecov](https://codecov.io/gh/djarek/ufiber/branch/master/graph/badge.svg)](https://codecov.io/gh/djarek/ufiber) | [![License](https://img.shields.io/badge/license-BSL%201.0-blue.svg)](https://opensource.org/licenses/BSL-1.0)
 
 
 ## Introduction

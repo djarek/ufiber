@@ -1,0 +1,11 @@
+{
+    "name": "ufiber",
+    "maintainers": "Damian Jarek <damian.jarek93@gmail.com>",
+    "version-string": "2",
+    "license": "BSL-1.0",
+    "homepage": "https://github.com/djarek/ufiber",
+    "documentation": "https://github.com/djarek/ufiber#api",
+    "description": "Minimalistic, header-only fiber library compatible with Boost.ASIO",
+    "dependencies": ["boost-asio"],
+    "supports": "linux"
+}

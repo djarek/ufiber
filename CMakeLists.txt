@@ -8,7 +8,7 @@ if (UFIBER_SANITIZE)
     link_libraries(-fsanitize=address,undefined)
 endif()
 
-find_package(Boost 1.67
+find_package(Boost 1.70
              COMPONENTS
                 context
                 system

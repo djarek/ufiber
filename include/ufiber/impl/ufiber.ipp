@@ -39,42 +39,12 @@ throw_broken_promise()
 
 fiber_context::fiber_context(boost::context::fiber&& f)
   : fiber_{std::move(f)}
-  , running_{true}
 {
-}
-
-void
-fiber_context::suspend() noexcept
-{
-    fiber_ = std::move(fiber_).resume_with([this](boost::context::fiber&& f) {
-        fiber_ = std::move(f);
-        running_ = false;
-        return boost::context::fiber{};
-    });
-    running_ = true;
-    assert(fiber_ && "Expected caller fiber");
-    // fiber_ should contain the main thread's stack at this point
 }
 
 void
 fiber_context::resumer::operator()(void*) noexcept
 {
-    if (ctx_.running_)
-    {
-        if (std::this_thread::get_id() == id_)
-        {
-            // If the fiber is running and we're on the same thread, that means
-            // that the operation failed to launch properly (e.g. allocation
-            // failure). Return to let the exception propagate to the caller.
-            return;
-        }
-
-        do
-        {
-            std::this_thread::yield();
-        } while (ctx_.running_);
-    }
-
     // Move onto stack, because resume() may invalidate ctx if fiber terminates
     auto fiber = std::move(ctx_.fiber_);
     fiber = std::move(fiber).resume();
@@ -96,25 +66,6 @@ initial_resume(boost::context::fiber&& f)
     assert(!f && "Unexpected fiber");
 }
 
-completion_handler_base::completion_handler_base(
-  detail::fiber_context& ctx) noexcept
-  : promise_{nullptr,
-             detail::fiber_context::resumer{ctx, std::this_thread::get_id()}}
-{
-}
-
-void
-completion_handler_base::attach(void* promise) noexcept
-{
-    promise_.reset(promise);
-}
-
-fiber_context&
-completion_handler_base::get_context() const noexcept
-{
-    return promise_.get_deleter().ctx_;
-}
-
 void
 promise<>::set_result() noexcept
 {
@@ -124,14 +75,12 @@ promise<>::set_result() noexcept
 void
 promise<>::get_value()
 {
+    switch (state_)
     {
-        switch (state_)
-        {
-            case result_state::value:
-                return;
-            default:
-                throw broken_promise{};
-        }
+        case result_state::value:
+            return;
+        default:
+            throw broken_promise{};
     }
 }
 

@@ -1,4 +1,6 @@
 #! /bin/bash
-lcov --directory build --capture --output-file build/coverage.info && \
-lcov --extract build/coverage.info $(pwd)'/include/*' --output-file build/coverage.info && \
-lcov --list build/coverage.info
+
+set -e
+lcov --directory $1 --capture --output-file $1/coverage.info && \
+lcov --extract $1/coverage.info $(pwd)'/include/*' --output-file $1/coverage.info && \
+lcov --list $1/coverage.info
